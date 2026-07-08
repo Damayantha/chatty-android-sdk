@@ -30,5 +30,7 @@ jobs:
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SIGNING_KEY_ID }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
-          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
-        run: ./gradlew publishToMavenCentral --no-configuration-cache
+          SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY }}
+        run: |
+          export ORG_GRADLE_PROJECT_signingInMemoryKey=$(echo "$SIGNING_KEY_BASE64" | base64 --decode)
+          ./gradlew publishToMavenCentral --no-configuration-cache
