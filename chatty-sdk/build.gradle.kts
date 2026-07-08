@@ -48,7 +48,7 @@ mavenPublishing {
     publishToMavenCentral(com.vanniktech.maven.publish.SonatypeHost.CENTRAL_PORTAL)
     signAllPublications()
 
-    coordinates("com.personaliai", "chatty-android-sdk", "1.0.0")
+    coordinates("com.personaliai", "chatty-android-sdk", "1.0.1")
 
     pom {
         name.set("Chatty Android SDK")
