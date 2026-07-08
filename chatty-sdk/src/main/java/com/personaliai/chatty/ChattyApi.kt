@@ -1,0 +1,165 @@
+package com.personaliai.chatty
+
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.io.IOException
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlin.coroutines.suspendCoroutine
+
+const val CHATTY_DEFAULT_BASE_URL = "https://personaliai-api-376030619262.us-central1.run.app"
+
+data class ChattyTheme(
+    val name: String? = null,
+    val primaryColor: String? = null,
+    val widgetStyle: String? = null,
+    val logoUrl: String? = null,
+    val welcomeMessage: String? = null,
+    val sendButtonStyle: String? = null,
+    val conversationStarters: List<String> = emptyList(),
+    val teaserMessage: String? = null,
+    val avatarIcon: String? = null,
+    val avatarUrl: String? = null,
+) {
+    companion object {
+        fun fromJson(json: JSONObject): ChattyTheme {
+            val starters = mutableListOf<String>()
+            json.optJSONArray("conversation_starters")?.let { arr ->
+                for (i in 0 until arr.length()) starters.add(arr.getString(i))
+            }
+            return ChattyTheme(
+                name = json.optString("name", null),
+                primaryColor = json.optString("primary_color", null),
+                widgetStyle = json.optString("widget_style", null),
+                logoUrl = json.optString("logo_url", null),
+                welcomeMessage = json.optString("welcome_message", null),
+                sendButtonStyle = json.optString("send_button_style", null),
+                conversationStarters = starters,
+                teaserMessage = json.optString("teaser_message", null),
+                avatarIcon = json.optString("avatar_icon", null),
+                avatarUrl = json.optString("avatar_url", null),
+            )
+        }
+    }
+}
+
+data class ChattyChatResponse(
+    val reply: String,
+    val sessionId: String,
+    val aiPaused: Boolean = false,
+    val fileUrl: String? = null,
+    val fileType: String? = null,
+) {
+    companion object {
+        fun fromJson(json: JSONObject): ChattyChatResponse = ChattyChatResponse(
+            reply = json.optString("reply", ""),
+            sessionId = json.optString("session_id", ""),
+            aiPaused = json.optBoolean("ai_paused", false),
+            fileUrl = json.optString("file_url", null),
+            fileType = json.optString("file_type", null),
+        )
+    }
+}
+
+data class ChattyPollMessage(val content: String, val createdAt: String, val sender: String)
+
+data class ChattyPollResponse(val messages: List<ChattyPollMessage>, val aiPaused: Boolean) {
+    companion object {
+        fun fromJson(json: JSONObject): ChattyPollResponse {
+            val arr = json.optJSONArray("messages") ?: JSONArray()
+            val msgs = (0 until arr.length()).map { i ->
+                val m = arr.getJSONObject(i)
+                ChattyPollMessage(m.optString("content"), m.optString("created_at"), m.optString("sender"))
+            }
+            return ChattyPollResponse(msgs, json.optBoolean("ai_paused", false))
+        }
+    }
+}
+
+class ChattyRateLimitException : IOException("Chatty: rate limit exceeded (30 messages / 60s per bot+IP)")
+class ChattyDomainNotAllowedException : IOException("Chatty: this app/host is not in the bot's allowed_domains list")
+
+/**
+ * Thin HTTP client for the Chatty widget API (the `/api/widget/` routes). No auth header —
+ * bot_id alone identifies the bot, optionally restricted by allowed_domains via `host`.
+ */
+class ChattyClient(
+    private val botId: String,
+    private val baseUrl: String = CHATTY_DEFAULT_BASE_URL,
+    private val host: String? = null,
+) {
+    private val client = OkHttpClient()
+
+    suspend fun getTheme(): ChattyTheme {
+        val url = "$baseUrl/api/widget/theme?bot_id=$botId&t=${System.currentTimeMillis()}"
+        val json = execute(Request.Builder().url(url).get().build())
+        return ChattyTheme.fromJson(json)
+    }
+
+    suspend fun sendMessage(sessionId: String, text: String, visitorTimezone: String = "UTC"): ChattyChatResponse {
+        val body = JSONObject().apply {
+            put("bot_id", botId)
+            put("session_id", sessionId)
+            put("text", text)
+            put("visitor_timezone", visitorTimezone)
+            host?.let { put("host", it) }
+        }.toString().toRequestBody("application/json".toMediaType())
+
+        val req = Request.Builder().url("$baseUrl/api/widget/chat").post(body).build()
+        return ChattyChatResponse.fromJson(execute(req))
+    }
+
+    suspend fun sendMedia(
+        sessionId: String,
+        file: File,
+        mimeType: String,
+        text: String = "",
+        visitorTimezone: String = "UTC",
+    ): ChattyChatResponse {
+        val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("bot_id", botId)
+            .addFormDataPart("session_id", sessionId)
+            .addFormDataPart("text", text)
+            .addFormDataPart("visitor_timezone", visitorTimezone)
+            .apply { host?.let { addFormDataPart("host", it) } }
+            .addFormDataPart("file", file.name, file.asRequestBody(mimeType.toMediaType()))
+            .build()
+
+        val req = Request.Builder().url("$baseUrl/api/widget/chat/media").post(multipart).build()
+        return ChattyChatResponse.fromJson(execute(req))
+    }
+
+    suspend fun poll(sessionId: String, after: String): ChattyPollResponse {
+        val url = "$baseUrl/api/widget/poll?bot_id=$botId&session_id=$sessionId&after=$after"
+        return ChattyPollResponse.fromJson(execute(Request.Builder().url(url).get().build()))
+    }
+
+    private suspend fun execute(request: Request): JSONObject = suspendCoroutine { cont ->
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) = cont.resumeWithException(e)
+            override fun onResponse(call: Call, response: Response) {
+                response.use {
+                    when (response.code) {
+                        429 -> return cont.resumeWithException(ChattyRateLimitException())
+                        403 -> return cont.resumeWithException(ChattyDomainNotAllowedException())
+                    }
+                    if (!response.isSuccessful) {
+                        return cont.resumeWithException(IOException("Chatty request failed: ${response.code}"))
+                    }
+                    val text = response.body?.string() ?: "{}"
+                    cont.resume(JSONObject(text))
+                }
+            }
+        })
+    }
+}
