@@ -1,6 +1,7 @@
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
+    id("com.vanniktech.maven.publish")
 }
 
 android {
@@ -41,4 +42,36 @@ dependencies {
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+}
+
+mavenPublishing {
+    publishToMavenCentral(com.vanniktech.maven.publish.SonatypeHost.CENTRAL_PORTAL)
+    signAllPublications()
+
+    coordinates("com.personaliai", "chatty-android-sdk", "1.0.0")
+
+    pom {
+        name.set("Chatty Android SDK")
+        description.set("Official Android SDK for Chatty AI chatbots — Kotlin + Jetpack Compose")
+        url.set("https://github.com/Damayantha/chatty-android-sdk")
+
+        licenses {
+            license {
+                name.set("MIT License")
+                url.set("https://opensource.org/licenses/MIT")
+            }
+        }
+        developers {
+            developer {
+                id.set("damayantha")
+                name.set("Damayantha")
+                email.set("damayanthakat@gmail.com")
+            }
+        }
+        scm {
+            connection.set("scm:git:git://github.com/Damayantha/chatty-android-sdk.git")
+            developerConnection.set("scm:git:ssh://github.com/Damayantha/chatty-android-sdk.git")
+            url.set("https://github.com/Damayantha/chatty-android-sdk")
+        }
+    }
 }
