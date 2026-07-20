@@ -6,7 +6,16 @@ Native Jetpack Compose chat widget SDK for Chatty — talks to the same `/api/wi
 
 ## Install
 
-Add as a module (e.g. via a local include or a private Maven repo once published):
+Maven Central publishing is configured (`com.vanniktech.maven.publish`, see `chatty-sdk/build.gradle.kts`)
+but hasn't been run yet — it needs a verified Sonatype account for the `com.personaliai` namespace.
+A JitPack build was also attempted and failed (recorded as `"1.0.0": "Error"` at
+`jitpack.io/api/builds/com.github.Damayantha/chatty-android-sdk`) — likely the `mavenPublishing {}`
+block trying to configure Sonatype publishing without credentials present breaks the build in
+JitPack's environment; worth trying `publishToMavenCentral()` behind a conditional (only when
+Sonatype credentials are actually set) if you want JitPack to work as an interim distribution
+channel.
+
+Until one of those is sorted out, include it as a local module:
 
 ```kotlin
 // settings.gradle.kts
