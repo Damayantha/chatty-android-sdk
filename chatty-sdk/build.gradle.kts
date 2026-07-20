@@ -45,8 +45,21 @@ dependencies {
 }
 
 mavenPublishing {
-    publishToMavenCentral(com.vanniktech.maven.publish.SonatypeHost.CENTRAL_PORTAL)
-    signAllPublications()
+    // Only configure the actual Sonatype publish + signing steps when
+    // credentials are present. Both DSL calls validate/require credentials
+    // at Gradle CONFIGURATION time (not just when the publish task runs),
+    // so on a build environment without them - like JitPack, which just
+    // needs the project to configure and produce a local Maven artifact,
+    // not push to Sonatype - calling them unconditionally breaks the build
+    // entirely before a single line of Kotlin gets compiled.
+    val hasSonatypeCredentials =
+        (findProperty("mavenCentralUsername") != null && findProperty("mavenCentralPassword") != null) ||
+        (System.getenv("ORG_GRADLE_PROJECT_mavenCentralUsername") != null &&
+            System.getenv("ORG_GRADLE_PROJECT_mavenCentralPassword") != null)
+    if (hasSonatypeCredentials) {
+        publishToMavenCentral(com.vanniktech.maven.publish.SonatypeHost.CENTRAL_PORTAL)
+        signAllPublications()
+    }
 
     coordinates("com.personaliai", "chatty-android-sdk", "1.0.1")
 
