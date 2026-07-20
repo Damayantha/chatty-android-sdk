@@ -2,20 +2,38 @@
 
 Native Jetpack Compose chat widget SDK for Chatty — talks to the same `/api/widget/*` backend as the web widget, rendered with real Compose UI (no WebView).
 
-> **Note:** this module was written in an environment without the Android SDK/Gradle toolchain installed, so it has not been compiled or run on a device/emulator. Review and build it (`./gradlew :chatty-sdk:assembleDebug`) before shipping.
+> **Note:** the `1.0.0`/`1.0.1` tags predate a JitPack build fix and never compiled anywhere
+> (`mavenPublishing {}` unconditionally required Sonatype credentials at Gradle configuration
+> time, breaking the build before any Kotlin got compiled — even for a plain `assembleDebug`).
+> Fixed in `v1.0.2`, confirmed via a real successful JitPack build
+> (`jitpack.io/api/builds/com.github.Damayantha/chatty-android-sdk` → `"v1.0.2": "ok"`). Use
+> `v1.0.2` or later.
 
 ## Install
 
-Maven Central publishing is configured (`com.vanniktech.maven.publish`, see `chatty-sdk/build.gradle.kts`)
-but hasn't been run yet — it needs a verified Sonatype account for the `com.personaliai` namespace.
-A JitPack build was also attempted and failed (recorded as `"1.0.0": "Error"` at
-`jitpack.io/api/builds/com.github.Damayantha/chatty-android-sdk`) — likely the `mavenPublishing {}`
-block trying to configure Sonatype publishing without credentials present breaks the build in
-JitPack's environment; worth trying `publishToMavenCentral()` behind a conditional (only when
-Sonatype credentials are actually set) if you want JitPack to work as an interim distribution
-channel.
+**Via JitPack (works today, no account needed):**
 
-Until one of those is sorted out, include it as a local module:
+```kotlin
+// settings.gradle.kts
+dependencyResolutionManagement {
+    repositories {
+        maven { url = uri("https://jitpack.io") }
+    }
+}
+```
+
+```kotlin
+// app/build.gradle.kts
+dependencies {
+    implementation("com.github.Damayantha:chatty-android-sdk:v1.0.2")
+}
+```
+
+**Via Maven Central:** configured (`com.vanniktech.maven.publish`, see `chatty-sdk/build.gradle.kts`)
+but not actually published yet — needs a verified Sonatype account for the `com.personaliai`
+namespace. Once that's done: `implementation("com.personaliai:chatty-android-sdk:1.0.1")`.
+
+**As a local module**, if you'd rather build from source directly:
 
 ```kotlin
 // settings.gradle.kts
